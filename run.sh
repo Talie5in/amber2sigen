@@ -23,11 +23,22 @@ ARGS=(
   "--plan-name" "${PLAN_NAME:-Amber Live}"
   "--advanced-price" "${ADVANCED:-predicted}"
   "--sigen-user" "${SIGEN_USER}"
-  "--sigen-pass-enc" "${SIGEN_PASS_ENC}"
   "--device-id" "${SIGEN_DEVICE_ID}"
 )
 
-[[ "${USE_CURRENT:-1}" == "1" ]] && ARGS+=("--use-current")
+# Handle USE_CURRENT env var (0/1 or False/True)
+case "${USE_CURRENT,,}" in
+  1|true|yes|on)
+    ARGS+=(--use-current)
+    ;;
+  0|false|no|off)
+    ARGS+=(--no-use-current)
+    ;;
+  *)
+    # default: let Python handle its own default
+    ;;
+esac
+
 [[ "${1:-}" == "--dry-run" ]] && ARGS+=("--dry-run")
 
 echo "[run.sh] Exec: ${PY} amber_to_sigen.py ${ARGS[*]}"
