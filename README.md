@@ -6,6 +6,7 @@ It can run every 5 or 30 minutes via systemd timer to keep your Sigen tariffs up
 ---
 
 ## Features
+
 - Pulls **Amber API** 5-minute or 30-minute prices (`perKwh` for buy, `spotPerKwh` for sell).
 - Supports `--advanced-price {low,predicted,high}` for Amber’s `advancedPrice`.
 - Seeds the **current active slot** from Amber’s `/prices/current` (optional, enabled by default).
@@ -16,15 +17,17 @@ It can run every 5 or 30 minutes via systemd timer to keep your Sigen tariffs up
 - Works with both `--interval 5` and `--interval 30`.
   - **Note**: Sigen only supports `--interval 30` right now, setting to 5 will break writing to Sigen.
 - Supports 30 minute billing for Amber customers (Eg, Victoria?)
-  - Use `--no-use-current` to force 30 minute Amber billing data (aka "Current Active Slot") 
+  - Use `--no-use-current` or `USE_CURRENT=False` ENV Flag - to force 30 minute Amber billing data (aka "Current Active Slot")
 
 ---
 
 ## Requirements
+
 - Python 3.9+
 - `requests`, `pycryptodome`, `python-dateutil`
 
 Install:
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -56,6 +59,7 @@ python3 sigen_make_env.py
 ```
 
 You will be prompted for:
+
 - **Amber API token** (`AMBER_TOKEN`)
 - **Sigen username** (`SIGEN_USER`) (See Below)
 - **Sigen encoded password** (`SIGEN_PASS_ENC`) (See below)
@@ -75,9 +79,11 @@ sudo chmod 600 /etc/amber2sigen.env
 2. Open Developer Tools → **Network** tab.  
 3. Log in normally.  
 4. Look for a request to:  
-   ```
+
+   ```text
    https://api-aus.sigencloud.com/auth/oauth/token
    ```
+
 5. In the request payload you will see:
    - `password` → this is the **encoded password** (copy into `SIGEN_PASS_ENC`).  
    - `userDeviceId` → this is the **device ID** (copy into `SIGEN_DEVICE_ID`).  
@@ -90,9 +96,11 @@ The `STATION_ID` is a unique numeric ID assigned to your Sigen Energy Controller
 It must be included in the payload or Sigen won’t know which unit to update.
 
 Easiest way to find it:
+
 1. Ask SigenAI to "Tell me my StationID"
 
 Complex Ways to find it:
+
 1. **HAR capture**: In your browser, open the Sigen web portal, perform a tariff save, then export the HAR.  
    Look for `"stationId": <your station ID>` in the JSON payload.  
 2. **App/device info**: Sometimes shown in the app under device details.  
@@ -116,7 +124,7 @@ TZ_OVERRIDE=Australia/Adelaide
 ALIGN=end
 PLAN_NAME=Amber Live
 ADVANCED=predicted
-USE_CURRENT=1
+USE_CURRENT=True
 STATION_ID=<Ask SigenAI for your Station ID>
 PAYLOAD_DEBUG=1
 ```
@@ -136,6 +144,7 @@ sudo -u amber2sigen bash run.sh
 ## Step 5. systemd
 
 `/etc/systemd/system/amber2sigen.service`
+
 ```ini
 [Unit]
 Description=Amber -> Sigen price sync
@@ -153,6 +162,7 @@ Group=amber2sigen
 ```
 
 `/etc/systemd/system/amber2sigen.timer`
+
 ```ini
 [Unit]
 Description=Run amber2sigen periodically at absolute 5-min marks +20s
@@ -170,6 +180,7 @@ WantedBy=timers.target
 ```
 
 Enable:
+
 ```bash
 sudo systemctl daemon-reexec
 sudo systemctl enable --now amber2sigen.timer
@@ -180,18 +191,25 @@ sudo systemctl enable --now amber2sigen.timer
 ## Journalctl Troubleshooting
 
 - Check last run:
+
   ```bash
   journalctl -u amber2sigen.service -n 200 --no-pager
   ```
+
 - Follow logs:
+
   ```bash
   journalctl -u amber2sigen.service -f
   ```
+
 - Verify timer:
+
   ```bash
   systemctl list-timers | grep amber2sigen
   ```
+
 - Watch Timer:
+
   ```bash
   watch -n 10 "systemctl list-timers | grep amber2sigen"
   ```
@@ -199,6 +217,7 @@ sudo systemctl enable --now amber2sigen.timer
 ---
 
 # CLI Flags
+
 ## CLI Flags for `amber_to_sigen.py`
 
 | Flag | Type / Values | Default | Purpose |
@@ -210,7 +229,7 @@ sudo systemctl enable --now amber2sigen.timer
 | `--align` | `start` / `end` | `end` | Whether to align Amber rows to slot **start** or **end**. Amber app convention is `end`. |
 | `--slot-shift` | Integer | `0` | Rotate/shift the entire BUY/SELL series by N slots. Positive = later, negative = earlier. |
 | `--advanced-price` | `low` / `predicted` / `high` | none | Use Amber’s `advancedPrice.<field>` for BUY price instead of `perKwh`. |
-| `--use-current` | Flag (on/off) | true (unless `USE_CURRENT=0`) | Enable fetching `/prices/current` to override the current slot with the latest interval. |
+| `--use-current` | Flag (on/off) | true (unless `USE_CURRENT=False`) | Enable fetching `/prices/current` to override the current slot with the latest interval. |
 | `--no-use-current` | Flag (on/off) | — | Explicitly disable `/prices/current` override. |
 | `--station-id` | Integer | **Required** | The numeric `stationId` for your Sigen Energy Controller. |
 | `--plan-name` | String | `"SAPN TOU"` | Label to use for the tariff plan in the payload sent to Sigen. |
@@ -220,7 +239,8 @@ sudo systemctl enable --now amber2sigen.timer
 | `--dry-run` | Flag | off | Print JSON payload instead of POSTing to Sigen. Useful for testing. |
 | `--allow-zero-buy` | Flag | off | Allow posting to Sigen even if final BUY prices include `0.0`. By default, posting is skipped if zeros are detected. |
 
-### Notes
+### CLI Notes for `amber_to_sigen.py`
+
 - Environment variables (`AMBER_TOKEN`, `INTERVAL`, `SIGEN_*`, etc.) can be set in `/etc/amber2sigen.env` instead of CLI flags.  
 - By default, if BUY prices contain `0.0` the script **will not POST** unless `--allow-zero-buy` is specified.  
 - `/prices/current` override improves accuracy by seeding with the **current active slot**. Disable with `--no-use-current`.
@@ -243,6 +263,7 @@ sudo systemctl enable --now amber2sigen.timer
 | `--advanced` | `low` / `predicted` / `high` | `predicted` | Default advanced price field to use for BUY. |
 | `--use-current` | `0` or `1` | `1` | Whether to use Amber’s `/prices/current` endpoint for active slot seeding. |
 
-### Notes
+### CLI Notes for `sigen_make_env.py`
+
 - The script writes a clean `.env` file with the variables needed by `amber_to_sigen.py` and `run.sh`.  
 - In the newer workflow, `--password` encoding must be bypassed (not used) and replaced with manual entry of `SIGEN_PASS_ENC` from browser dev tools.  
