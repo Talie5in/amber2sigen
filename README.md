@@ -14,9 +14,9 @@ It can run every 5 or 30 minutes via systemd timer to keep your Sigen tariffs up
   - `SIGEN_BEARER` (manual bearer token).
 - Dry-run mode prints JSON payload without posting to Sigen.
 - Works with both `--interval 5` and `--interval 30`.
-  - **Note**: Sigen only supports `--interval 30` right now.
+  - **Note**: Sigen only supports `--interval 30` right now, setting to 5 will break writing to Sigen.
 - Supports 30 minute billing for Amber customers (Eg, Victoria?)
-  - Use `--use-current 0` to force 30 minute Amber billing data (dont use 5 minute current for infill) 
+  - Use `--no-use-current` to force 30 minute Amber billing data (aka "Current Active Slot") 
 
 ---
 
