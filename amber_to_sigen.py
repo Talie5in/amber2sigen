@@ -3,6 +3,9 @@
 """
 Amber (5-minute or 30-minute) -> Sigen staticPricing (now -> +24h)
 
+Version: v25
+- Fixed "feedin" price responses from Amber API (use "general prices")
+
 Version: v24
 - Midnight label normalization in final series & target labels (…-24:00).
 - Hardened _lookup_price_by_label() to normalize both sides and tolerate spacing/00:00 vs 24:00.
@@ -113,8 +116,12 @@ def fetch_amber_prices(token: str, site_id: str, start_date: str, end_date: str,
     r.raise_for_status()
     data = r.json()
     if isinstance(data, dict) and "intervals" in data:
-        return data["intervals"]
-    return data
+        rows = data["intervals"]
+    else:
+        rows = data if isinstance(data, list) else []
+    # --- NEW: filter out feedIn etc ---
+    rows = [r for r in rows if r.get("channelType", "").lower() == "general"]
+    return rows
 
 def fetch_amber_current_triplet_prefer5(token: str, site_id: str) -> Optional[List[dict]]:
     """
@@ -132,15 +139,19 @@ def fetch_amber_current_triplet_prefer5(token: str, site_id: str) -> Optional[Li
         r.raise_for_status()
         data = r.json()
         if isinstance(data, list) and data:
-            return data
-        if isinstance(data, dict) and data:
-            return [data]
-        return None
+            rows = data
+        elif isinstance(data, dict) and data:
+            rows = [data]
+        else:
+            return None
+        # --- NEW: filter channelType ---
+        return [row for row in rows if row.get("channelType", "").lower() == "general"]
 
     trip = _get(5)
     if not trip:
         trip = _get(30)
     return trip
+
 
 # ---------------- Slot building & mapping (UTC-normalized) ----------------
 
