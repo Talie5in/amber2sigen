@@ -21,7 +21,7 @@ ARGS=(
   "--tz" "${TZ_OVERRIDE:-Australia/Adelaide}"
   "--align" "${ALIGN:-end}"
   "--plan-name" "${PLAN_NAME:-Amber Live}"
-  "--advanced-price" "${ADVANCED:-predicted}"
+  "--advanced-price" "${ADVANCED-predicted}"
   "--sigen-user" "${SIGEN_USER}"
   "--device-id" "${SIGEN_DEVICE_ID}"
 )
