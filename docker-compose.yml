@@ -13,6 +13,7 @@ services:
       - SIGEN_USER=${SIGEN_USER}
       - SIGEN_DEVICE_ID=${SIGEN_DEVICE_ID}
       - SIGEN_PASS_ENC=${SIGEN_PASS_ENC}
+      - STATION_ID=${STATION_ID}
 
       # Optional - Timing and behavior
       - INTERVAL=${INTERVAL:-30}
@@ -21,7 +22,14 @@ services:
       - PLAN_NAME=${PLAN_NAME:-Amber Live}
       - ADVANCED=${ADVANCED:-predicted}
       - USE_CURRENT=${USE_CURRENT:-1}
-      - STATION_ID=${STATION_ID:-}
+
+      # Optional - SELL channel configuration (v29)
+      - SELL_CHANNEL=${SELL_CHANNEL:-general}
+      - SELLADVANCED=${SELLADVANCED:-}
+
+      # Optional - Docker scheduling
+      - RUN_IMMEDIATELY=${RUN_IMMEDIATELY:-0}
+      - EXTRA_ARGS=${EXTRA_ARGS:-}
     env_file:
       # Copy amber2sigen.env.example to amber2sigen.env and configure
       - amber2sigen.env

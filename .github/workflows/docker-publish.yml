@@ -1,0 +1,211 @@
+name: Build and Publish Docker Image
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+    tags:
+      - 'v*.*.*'
+      - 'v*.*'
+      - 'v*'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0). Leave empty for branch-based tag.'
+        required: false
+        type: string
+      push_dockerhub:
+        description: 'Push to Docker Hub'
+        required: false
+        type: boolean
+        default: true
+      push_ghcr:
+        description: 'Push to GHCR'
+        required: false
+        type: boolean
+        default: true
+
+env:
+  GHCR_REGISTRY: ghcr.io
+  DOCKERHUB_IMAGE: talie5in/amber2sigen
+  GHCR_IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Check if Docker Hub secrets are available
+      - name: Check Docker Hub credentials
+        id: dockerhub-check
+        run: |
+          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "available=true" >> $GITHUB_OUTPUT
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+            echo "::warning::Docker Hub credentials not configured. Skipping Docker Hub push."
+          fi
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GHCR_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        if: |
+          github.event_name != 'pull_request' &&
+          steps.dockerhub-check.outputs.available == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Determine which registries to push to
+      - name: Determine push targets
+        id: push-targets
+        run: |
+          IMAGES=""
+
+          # GHCR - always available (uses GITHUB_TOKEN)
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            if [ "${{ github.event_name }}" != "workflow_dispatch" ] || [ "${{ inputs.push_ghcr }}" == "true" ]; then
+              IMAGES="${{ env.GHCR_IMAGE }}"
+            fi
+          fi
+
+          # Docker Hub - only if credentials available
+          if [ "${{ steps.dockerhub-check.outputs.available }}" == "true" ]; then
+            if [ "${{ github.event_name }}" != "pull_request" ]; then
+              if [ "${{ github.event_name }}" != "workflow_dispatch" ] || [ "${{ inputs.push_dockerhub }}" == "true" ]; then
+                if [ -n "$IMAGES" ]; then
+                  IMAGES="$IMAGES,${{ env.DOCKERHUB_IMAGE }}"
+                else
+                  IMAGES="${{ env.DOCKERHUB_IMAGE }}"
+                fi
+              fi
+            fi
+          fi
+
+          echo "images=$IMAGES" >> $GITHUB_OUTPUT
+          echo "Push targets: $IMAGES"
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.push-targets.outputs.images }}
+          # Generate tags based on git ref
+          tags: |
+            # Branch tags
+            type=ref,event=branch
+            # PR tags
+            type=ref,event=pr
+            # Semantic version tags from git tags
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
+            # Git short SHA
+            type=sha,prefix=sha-
+            # Latest tag only on main branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            # Edge tag for main branch (useful for testing latest changes)
+            type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}
+            # Develop branch gets 'develop' tag
+            type=raw,value=develop,enable=${{ github.ref == 'refs/heads/develop' }}
+            # Manual version input
+            type=raw,value=${{ inputs.version }},enable=${{ inputs.version != '' }}
+          labels: |
+            org.opencontainers.image.title=amber2sigen
+            org.opencontainers.image.description=Sync electricity prices (Amber/LocalVolts) to Sigen Energy Controller
+            org.opencontainers.image.vendor=Talie5in
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' && steps.push-targets.outputs.images != '' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ steps.meta.outputs.version }}
+
+      - name: Summary
+        run: |
+          echo "## Docker Image Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Tags Published" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pull Commands" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.dockerhub-check.outputs.available }}" == "true" ]; then
+            echo '```bash' >> $GITHUB_STEP_SUMMARY
+            echo "docker pull ${{ env.DOCKERHUB_IMAGE }}:latest" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.GHCR_IMAGE }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # Create GitHub Release when a version tag is pushed
+  release:
+    needs: build-and-push
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+          body: |
+            ## Docker Images
+
+            Pull the image from Docker Hub or GHCR:
+
+            ```bash
+            # Docker Hub
+            docker pull ${{ env.DOCKERHUB_IMAGE }}:${{ github.ref_name }}
+
+            # GitHub Container Registry
+            docker pull ${{ env.GHCR_IMAGE }}:${{ github.ref_name }}
+            ```
+
+            Or use `latest` for the most recent stable release:
+
+            ```bash
+            docker pull ${{ env.DOCKERHUB_IMAGE }}:latest
+            docker pull ${{ env.GHCR_IMAGE }}:latest
+            ```
