@@ -21,7 +21,94 @@ It can run every 5 or 30 minutes via systemd timer to keep your Sigen tariffs up
 
 ---
 
-## Requirements
+## Installation Options
+
+Choose one of the following installation methods:
+
+- **[Docker](#docker-installation)** (Recommended) - Easiest setup, automatic restarts
+- **[Manual/systemd](#manual-installation)** - Traditional Linux service installation
+
+---
+
+## Docker Installation
+
+### Prerequisites
+
+- Docker and Docker Compose installed
+- Amber API token from https://app.amber.com.au/developers
+- Sigen credentials (see [How to find SIGEN_PASS_ENC and SIGEN_DEVICE_ID](#how-to-find-sigen_pass_enc-and-sigen_device_id))
+
+### Quick Start
+
+1. **Clone the repository**
+
+   ```bash
+   git clone https://github.com/bolagnaise/amber2sigen.git
+   cd amber2sigen
+   ```
+
+2. **Configure environment**
+
+   Copy the example env file and edit with your credentials:
+
+   ```bash
+   cp amber2sigen.env.example amber2sigen.env
+   nano amber2sigen.env
+   ```
+
+   ```dotenv
+   AMBER_TOKEN=psk_xxxxxxxxxxxxxxxxxxxx
+   SIGEN_USER=your@email.com
+   SIGEN_DEVICE_ID=1756353655250
+   SIGEN_PASS_ENC="ENCRYPTED_BLOB"
+
+   # Optional tuning
+   INTERVAL=30
+   TZ_OVERRIDE=Australia/Adelaide
+   ALIGN=end
+   PLAN_NAME=Amber Live
+   ADVANCED=predicted
+   USE_CURRENT=1
+   STATION_ID=<Your Station ID>
+   ```
+
+3. **Start the container**
+
+   ```bash
+   docker compose up -d
+   ```
+
+4. **View logs**
+
+   ```bash
+   docker compose logs -f
+   ```
+
+### Docker Commands
+
+```bash
+# Start
+docker compose up -d
+
+# Stop
+docker compose down
+
+# Restart
+docker compose restart
+
+# View logs
+docker compose logs -f amber2sigen
+
+# Rebuild after updates
+docker compose build --no-cache
+docker compose up -d
+```
+
+---
+
+## Manual Installation
+
+### Requirements
 
 - Python 3.9+
 - `requests`, `pycryptodome`, `python-dateutil`
@@ -34,7 +121,7 @@ pip install -r requirements.txt
 
 ---
 
-## Step 1. Create user and directory
+### Step 1. Create user and directory
 
 For security, run this under a dedicated system user:
 
