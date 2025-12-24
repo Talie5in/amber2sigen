@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  amber2sigen:
+    build: .
+    container_name: amber2sigen
+    restart: unless-stopped
+    environment:
+      # Required - Amber API token from https://app.amber.com.au/developers
+      - AMBER_TOKEN=${AMBER_TOKEN}
+
+      # Required - Sigen credentials
+      - SIGEN_USER=${SIGEN_USER}
+      - SIGEN_DEVICE_ID=${SIGEN_DEVICE_ID}
+      - SIGEN_PASS_ENC=${SIGEN_PASS_ENC}
+
+      # Optional - Timing and behavior
+      - INTERVAL=${INTERVAL:-30}
+      - TZ_OVERRIDE=${TZ_OVERRIDE:-Australia/Sydney}
+      - ALIGN=${ALIGN:-end}
+      - PLAN_NAME=${PLAN_NAME:-Amber Live}
+      - ADVANCED=${ADVANCED:-predicted}
+      - USE_CURRENT=${USE_CURRENT:-1}
+      - STATION_ID=${STATION_ID:-}
+    env_file:
+      # Copy amber2sigen.env.example to amber2sigen.env and configure
+      - amber2sigen.env
+    volumes:
+      # Optional: persist token cache
+      - ./data:/config
