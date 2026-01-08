@@ -11,7 +11,8 @@ It can run every 5 or 30 minutes via systemd timer to keep your Sigen tariffs up
 - Supports `--advanced-price {low,predicted,high}` for Amber’s `advancedPrice`.
 - Seeds the **current active slot** from Amber’s `/prices/current` (optional, enabled by default).
 - Authenticates to **Sigen Cloud** with either:
-  - `SIGEN_USER`, `SIGEN_PASS_ENC`, `SIGEN_DEVICE_ID` (recommended), or
+  - `SIGEN_USER`, `SIGEN_PASS`, `SIGEN_DEVICE_ID` (recommended - plain password, auto-encoded), or
+  - `SIGEN_USER`, `SIGEN_PASS_ENC`, `SIGEN_DEVICE_ID` (advanced - pre-encoded password), or
   - `SIGEN_BEARER` (manual bearer token).
 - Dry-run mode prints JSON payload without posting to Sigen.
 - Works with both `--interval 5` and `--interval 30`.
@@ -36,7 +37,7 @@ Choose one of the following installation methods:
 
 - Docker and Docker Compose installed
 - Amber API token from https://app.amber.com.au/developers
-- Sigen credentials (see [How to find SIGEN_PASS_ENC and SIGEN_DEVICE_ID](#how-to-find-sigen_pass_enc-and-sigen_device_id))
+- Sigen credentials (see [Sigen Authentication](#sigen-authentication))
 
 ### Quick Start
 
@@ -60,7 +61,7 @@ Choose one of the following installation methods:
    AMBER_TOKEN=psk_xxxxxxxxxxxxxxxxxxxx
    SIGEN_USER=your@email.com
    SIGEN_DEVICE_ID=1756353655250
-   SIGEN_PASS_ENC="ENCRYPTED_BLOB"
+   SIGEN_PASS=YourSigenPassword
 
    # Optional tuning
    INTERVAL=30
@@ -160,22 +161,49 @@ sudo chown root:root /etc/amber2sigen.env
 sudo chmod 600 /etc/amber2sigen.env
 ```
 
-### How to find SIGEN_PASS_ENC and SIGEN_DEVICE_ID
+### Sigen Authentication
 
-1. Open the Sigen web portal in your browser (https://app-aus.sigencloud.com/)  
-2. Open Developer Tools → **Network** tab.  
-3. Log in normally.  
-4. Look for a request to:  
+You have two options for authenticating with Sigen:
+
+#### Option 1: Plain Password (Recommended)
+
+Simply use your Sigen account password directly:
+
+```dotenv
+SIGEN_USER=your@email.com
+SIGEN_PASS=YourSigenPassword
+SIGEN_DEVICE_ID=1756353655250
+```
+
+The password will be automatically encoded using Sigenergy's AES-128-CBC encryption before being sent to the API.
+
+#### Option 2: Pre-encoded Password (Advanced)
+
+If you already have an encoded password from browser dev tools, you can use it directly:
+
+```dotenv
+SIGEN_USER=your@email.com
+SIGEN_PASS_ENC=aZ9ejFf8Ya3lUFlQL9sprw==
+SIGEN_DEVICE_ID=1756353655250
+```
+
+### How to find SIGEN_DEVICE_ID
+
+The `SIGEN_DEVICE_ID` is a 13-digit identifier that you need to capture from browser dev tools:
+
+1. Open the Sigen web portal in your browser (https://app-aus.sigencloud.com/)
+2. Open Developer Tools → **Network** tab.
+3. Log in normally.
+4. Look for a request to:
 
    ```text
    https://api-aus.sigencloud.com/auth/oauth/token
    ```
 
 5. In the request payload you will see:
-   - `password` → this is the **encoded password** (copy into `SIGEN_PASS_ENC`).  
-   - `userDeviceId` → this is the **device ID** (copy into `SIGEN_DEVICE_ID`).  
+   - `userDeviceId` → this is the **device ID** (copy into `SIGEN_DEVICE_ID`).
 
-Copy these values exactly into the prompts.
+Copy this value exactly into your configuration.
 
 ## How to find your Sigen Station ID
 
@@ -203,7 +231,7 @@ This value is specific to your unit — not random or generated locally.
 AMBER_TOKEN=psk_xxxxxxxxxxxxxxxxxxxx
 SIGEN_USER=your@email.com
 SIGEN_DEVICE_ID=1756353655250
-SIGEN_PASS_ENC="ENCRYPTED_BLOB"
+SIGEN_PASS=YourSigenPassword
 
 # Optional tuning
 INTERVAL=30
