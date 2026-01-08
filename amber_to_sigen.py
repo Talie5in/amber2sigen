@@ -72,6 +72,7 @@ Examples:
 """
 
 import argparse
+import base64
 import datetime as dt
 import hashlib
 import json
@@ -82,6 +83,8 @@ from collections import deque
 from typing import Dict, List, Tuple, Optional
 
 import requests
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
 
 AMBER_BASE = "https://api.amber.com.au/v1"
 SIGEN_TOKEN_URL = "https://api-aus.sigencloud.com/auth/oauth/token"
@@ -370,7 +373,30 @@ def _lookup_price_by_label(series: List[Tuple[str, float]], label: str) -> Optio
     return None
 
 
-# ---------------- Sigen OAuth helpers (supports SIGEN_PASS_ENC) ----------------
+# ---------------- Sigen OAuth helpers (supports SIGEN_PASS and SIGEN_PASS_ENC) ----------------
+
+# Sigenergy password encryption constants
+_SIGENERGY_AES_KEY = b"sigensigensigenp"  # 16 bytes for AES-128
+_SIGENERGY_AES_IV = b"sigensigensigenp"   # Same as key
+
+
+def encode_sigenergy_password(plain_password: str) -> str:
+    """Encode a plain password to Sigenergy's encrypted format.
+
+    Sigenergy uses AES-128-CBC with PKCS7 padding, then Base64 encodes the result.
+    Key and IV are both "sigensigensigenp".
+
+    Args:
+        plain_password: The plain text password
+
+    Returns:
+        Base64-encoded encrypted password (pass_enc format)
+    """
+    cipher = AES.new(_SIGENERGY_AES_KEY, AES.MODE_CBC, _SIGENERGY_AES_IV)
+    padded_data = pad(plain_password.encode("utf-8"), AES.block_size)
+    encrypted = cipher.encrypt(padded_data)
+    return base64.b64encode(encrypted).decode("utf-8")
+
 
 def cache_path_for(user: str) -> str:
     base = os.path.join(os.path.expanduser("~"), ".cache", "amber_to_sigen")
@@ -470,14 +496,30 @@ def ensure_sigen_headers(user: str, user_device_id: str) -> Dict[str, str]:
         except Exception:
             pass
 
+    # Support both plain password (SIGEN_PASS) and pre-encoded password (SIGEN_PASS_ENC)
+    # Priority: SIGEN_PASS_ENC (explicit) > SIGEN_PASS (will be encoded)
     enc_pw = os.environ.get("SIGEN_PASS_ENC")
+    plain_pw = os.environ.get("SIGEN_PASS")
+
     if enc_pw:
+        # Use pre-encoded password directly
         newtok = sigen_password_grant_encrypted(user, enc_pw, user_device_id)
         save_cached_tokens(user, newtok)
         headers["Authorization"] = f"{newtok.get('token_type','Bearer')} {newtok['access_token']}"
         return headers
 
-    raise RuntimeError("No way to authenticate: set SIGEN_PASS_ENC (encrypted password) and SIGEN_DEVICE_ID.")
+    if plain_pw:
+        # Encode plain password and use it
+        enc_pw = encode_sigenergy_password(plain_pw)
+        newtok = sigen_password_grant_encrypted(user, enc_pw, user_device_id)
+        save_cached_tokens(user, newtok)
+        headers["Authorization"] = f"{newtok.get('token_type','Bearer')} {newtok['access_token']}"
+        return headers
+
+    raise RuntimeError(
+        "No way to authenticate: set SIGEN_PASS (plain password) or SIGEN_PASS_ENC (encrypted password), "
+        "along with SIGEN_DEVICE_ID."
+    )
 
 
 # ---------------- Utilities ----------------

@@ -30,7 +30,7 @@ def main():
     station_id = input("Enter Sigen station ID (STATION_ID): ").strip()
 
     sigen_user = input("Enter Sigen username/email (SIGEN_USER): ").strip()
-    sigen_pass_enc = getpass.getpass("Enter Sigen encoded password (SIGEN_PASS_ENC): ")
+    sigen_pass = getpass.getpass("Enter Sigen password (SIGEN_PASS): ")
     sigen_device_id = input("Enter Sigen device ID (SIGEN_DEVICE_ID): ").strip()
 
     # v29: SELL channel + optional advanced selector
@@ -46,7 +46,7 @@ def main():
         "AMBER_TOKEN": amber_token,
         "STATION_ID": station_id,
         "SIGEN_USER": sigen_user,
-        "SIGEN_PASS_ENC": sigen_pass_enc,
+        "SIGEN_PASS": sigen_pass,
         "SIGEN_DEVICE_ID": sigen_device_id,
 
         "INTERVAL": "30",
